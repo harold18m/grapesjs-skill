@@ -1,6 +1,6 @@
 ---
 name: grapesjs
-description: GrapesJS web builder framework - API usage and style customization. Use when working with GrapesJS editor initialization, component creation, block management, style manager configuration, theming, CSS custom properties, custom component types, plugins, storage, panels, commands, traits, canvas, layers, assets, responsive design, modal, pages, data sources, i18n, rich text editor, keymaps, undo manager, or any task involving building/customizing a drag-and-drop page builder with GrapesJS.
+description: GrapesJS web builder framework. Use when working with GrapesJS editor, components, blocks, style manager, theming, custom component types, plugins, storage, panels, commands, traits, canvas (zoom/pan/drag), layers, assets, responsive design, modal, pages, data sources, i18n, RTE, keymaps, undo/redo, component scripts, symbols, CssComposer, resizable/draggable/droppable/locked properties, or any drag-and-drop page builder task with GrapesJS.
 ---
 
 # GrapesJS Skill
@@ -117,29 +117,9 @@ grapesjs.init({
 
 ## Default Commands
 
-Built-in commands use `core:*` namespace:
+Built-in commands use `core:*` namespace. Full list in [references/commands-reference.md](references/commands-reference.md). Key commands:
 
-| Command | Description |
-|---|---|
-| `core:canvas-clear` | Clear all content |
-| `core:component-delete` | Delete selected |
-| `core:component-enter` | Select first child |
-| `core:component-exit` | Select parent |
-| `core:component-next` | Select next sibling |
-| `core:component-prev` | Select previous sibling |
-| `core:component-outline` | Toggle outline borders |
-| `core:component-offset` | Show margins/paddings |
-| `core:component-select` | Enable canvas selection |
-| `core:copy` / `core:paste` | Copy/paste component |
-| `core:preview` | Preview mode |
-| `core:fullscreen` | Fullscreen mode |
-| `core:open-code` | Open code panel |
-| `core:open-layers` | Open layers panel |
-| `core:open-styles` | Open style manager |
-| `core:open-traits` | Open trait manager |
-| `core:open-blocks` | Open blocks panel |
-| `core:open-assets` | Open asset manager |
-| `core:undo` / `core:redo` | Undo/Redo |
+`core:canvas-clear`, `core:component-delete`, `core:component-enter` (select child), `core:component-exit` (select parent), `core:component-next/prev`, `core:component-outline`, `core:component-offset`, `core:component-select`, `core:copy`/`core:paste`, `core:preview`, `core:fullscreen`, `core:open-code`, `core:open-layers`, `core:open-styles`, `core:open-traits`, `core:open-blocks`, `core:open-assets`, `core:undo`/`core:redo`.
 
 ## Editor Init Config Reference
 
@@ -164,13 +144,51 @@ grapesjs.init({
   storageManager: { type: 'local', autosave: true, autoload: true },
   deviceManager: { devices: [] },
   assetManager: { assets: [], upload: false },
-  canvas: {},
+  canvas: {
+    scripts: [],               // JS files to load in canvas iframe
+    styles: [],                // CSS files to load in canvas iframe
+  },
+  keymaps: { defaults: {} },   // Custom keyboard shortcuts
 });
 ```
+
+## Common Pitfalls
+
+### 1. Component scripts run in an isolated iframe
+All component scripts execute inside the canvas iframe, NOT in the editor's document. You cannot reference external variables, editor APIs, or outer-scope libraries inside `script`. Use `script-props` to pass data. See [references/components-js-reference.md](references/components-js-reference.md).
+
+### 2. `find()` only works after render, `findType()` works always
+`component.find('.my-class')` uses CSS selectors and requires the component to be rendered in the canvas. Use `component.findType('image')` or `component.closestType('section')` when working with components before render (e.g., in `init()` hooks or plugins).
+
+### 3. Don't put styles or scripts in blocks
+Block content should be component-oriented. Declare `styles` in the component type `defaults`, not in the block `content`. Scripts belong in the component type definition, not in block HTML.
+
+### 4. `isComponent` is NOT called for objects or `data-gjs-type`
+When you add components via objects (`{ type: 'my-type' }`) or HTML with `data-gjs-type`, the `isComponent` function is skipped. It only runs for plain HTML strings without `data-gjs-type`.
+
+### 5. Component-scoped styles are grouped per type
+Styles defined in `defaults.styles` are shared across all instances of that type and auto-removed only when ALL instances of that type are removed. Follow component-oriented styling: each type owns its own styles.
+
+### 6. `locked` cascades to children
+Setting `locked: true` on a component disables selection for it AND all its children. A child can opt out by explicitly setting its own `locked: false`.
+
+### 7. `propagate` applies to NEW children only
+The `propagate` array only affects components appended AFTER the property is set. Existing children are not retroactively updated.
+
+### 8. UndoManager tracks components and CSS rules automatically
+You don't need to manually add components or CSS rules to the UndoManager — they're auto-tracked. Use `um.skip(() => { ... })` for batch programmatic changes you don't want in the undo stack.
+
+### 9. Aborting component removal
+Listen to `component:remove:before` and set `opts.abort = true` to prevent deletion. Call the provided `removeFn()` later to complete it.
+
+### 10. Canvas dependencies are NOT in exported HTML
+Scripts/styles added via `canvas.scripts` / `canvas.styles` config are loaded in the editor's iframe but NOT included in `editor.getHtml()` output. You must include them separately in your final template.
 
 ## Detailed References
 
 - **API Reference** (components, blocks, commands, storage, events, traits, canvas, assets, layers, pages): See [references/api-reference.md](references/api-reference.md)
+- **Core API** (UndoManager, Canvas zoom/coords/drag, CssComposer, Keymaps, component properties like draggable/droppable/resizable/locked/selectable): See [references/core-api-reference.md](references/core-api-reference.md)
+- **Components & JS + Symbols** (component scripts, script-props, dependencies, symbols/instances, overrides): See [references/components-js-reference.md](references/components-js-reference.md)
 - **Style Customization** (Style Manager, theming, CSS variables, custom types): See [references/style-customization.md](references/style-customization.md)
 - **Traits & Settings** (built-in types, custom types, custom UI, categories, i18n): See [references/traits-reference.md](references/traits-reference.md)
 - **Canvas & Spots** (canvas spots, custom overlays, disabling built-in spots): See [references/canvas-reference.md](references/canvas-reference.md)

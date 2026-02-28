@@ -5,7 +5,7 @@
 - Panels & Sidebar
 - Layer/Style/Trait Switcher
 - Responsive Device Switcher
-- Theming
+- Theming (→ style-customization.md)
 - Custom Module UIs
 
 ## Full Editor Layout
@@ -182,27 +182,7 @@ editor.Panels.addPanel({
 
 ## Theming
 
-### CSS Classes
-```css
-/* Primary background */
-.gjs-one-bg { background-color: #78366a; }
-/* Secondary text color */
-.gjs-two-color { color: rgba(255, 255, 255, 0.7); }
-/* Tertiary background */
-.gjs-three-bg { background-color: #ec5896; color: white; }
-/* Quaternary text color */
-.gjs-four-color, .gjs-four-color-h:hover { color: #ec5896; }
-```
-
-### CSS Custom Properties (recommended)
-```css
-:root {
-  --gjs-primary-color: #78366a;
-  --gjs-secondary-color: rgba(255, 255, 255, 0.7);
-  --gjs-tertiary-color: #ec5896;
-  --gjs-quaternary-color: #ec5896;
-}
-```
+See [style-customization.md](style-customization.md) for full theming reference (CSS classes and CSS custom properties).
 
 ## Custom Module UIs
 

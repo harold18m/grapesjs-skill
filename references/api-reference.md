@@ -229,6 +229,32 @@ defaults: {
 ### Built-in Component Types
 `default`, `text`, `textnode`, `image`, `video`, `link`, `label`, `map`, `table`, `row`, `cell`, `thead`, `tbody`, `tfoot`, `svg`, `script`, `comment`, `wrapper`
 
+## DomComponents Module API
+
+```js
+const cmp = editor.Components; // or editor.DomComponents
+
+// Component type management
+cmp.addType('my-type', { model: {}, view: {} });
+cmp.getType('my-type');        // { model, view }
+cmp.removeType('my-type');     // remove type definition
+cmp.getTypes();                // array of all registered types
+
+// Check if object is a Component
+cmp.isComponent(editor.getSelected()); // true
+cmp.isComponent({});                   // false
+
+// Check if drag/drop is valid — see core-api-reference.md for details
+cmp.canMove(targetComponent, sourceComponent);
+// Returns { result: Boolean, source, target, reason: 0|1|2 }
+
+// Symbols — see components-js-reference.md for full details
+cmp.addSymbol(component);
+cmp.getSymbols();
+cmp.detachSymbol(component);
+cmp.getSymbolInfo(component);
+```
+
 ## Blocks
 
 ```js
@@ -331,41 +357,13 @@ editor.on('command:stop', commandId => { /* any command stop */ });
 
 ## Storage
 
+See [storage-reference.md](storage-reference.md) for full storage documentation (local, remote, custom, inline, events).
+
 ```js
-// Local storage
-grapesjs.init({
-  storageManager: {
-    type: 'local',
-    autosave: true,
-    autoload: true,
-    stepsBeforeSave: 1,
-    options: {
-      local: { key: 'gjsProject' },
-    },
-  },
-});
-
-// Remote storage
-grapesjs.init({
-  storageManager: {
-    type: 'remote',
-    autosave: true,
-    stepsBeforeSave: 10,
-    options: {
-      remote: {
-        headers: {},
-        urlStore: 'https://api.example.com/store',
-        urlLoad: 'https://api.example.com/load',
-        fetchOptions: opts => (opts.method === 'POST' ? { method: 'PATCH' } : {}),
-        onStore: (data, editor) => ({ id: projectID, data }),
-        onLoad: result => result.data,
-      },
-    },
-  },
-});
-
-// Disable storage
-grapesjs.init({ storageManager: false });
+// Quick reference
+grapesjs.init({ storageManager: false }); // disable
+grapesjs.init({ storageManager: { type: 'local', autosave: true } });
+grapesjs.init({ storageManager: { type: 'remote', options: { remote: { urlStore: '...', urlLoad: '...' } } } });
 
 // Manual save/load
 await editor.store();
@@ -373,45 +371,9 @@ await editor.load();
 const data = editor.getProjectData();
 editor.loadProjectData(data);
 
-// Define custom storage
-editor.Storage.add('session', {
-  async load(options = {}) {
-    return JSON.parse(sessionStorage.getItem(options.key));
-  },
-  async store(data, options = {}) {
-    sessionStorage.setItem(options.key, JSON.stringify(data));
-  },
-});
-
-// Replace existing storage (e.g., with axios)
-editor.Storage.add('remote', {
-  async load() { return await axios.get(`projects/${id}`); },
-  async store(data) { return await axios.patch(`projects/${id}`, { data }); },
-});
-
-// Skip initial load with projectData
+// Skip initial load
 grapesjs.init({
   projectData: existingData || { pages: [{ component: '<div>Initial</div>' }] },
-  storageManager: { type: 'remote' },
-});
-
-// Store HTML/CSS with project data
-grapesjs.init({
-  storageManager: {
-    type: 'remote',
-    options: {
-      remote: {
-        onStore: (data, editor) => {
-          const pagesHtml = editor.Pages.getAll().map(page => {
-            const component = page.getMainComponent();
-            return { html: editor.getHtml({ component }), css: editor.getCss({ component }) };
-          });
-          return { id: projectID, data, pagesHtml };
-        },
-        onLoad: result => result.data,
-      },
-    },
-  },
 });
 ```
 
@@ -452,17 +414,26 @@ editor.setDevice('Mobile');
 - `update` - any project change
 - `undo` / `redo`
 - `load` - editor loaded and rendered
-- `project:load` / `project:loaded`
-- `project:get` - extend project data on request
+- `project:load` - project JSON loaded (`{ project, initial }`)
+- `project:loaded` - same but only on success
+- `project:get` - extend project data on request (`{ project }`)
+- `log` - log message triggered (`msg, opts`)
 - `destroy` / `destroyed`
 
 ### Component Events
-- `component:create` - component created
+- `component:create` - component created (model only, not yet in canvas)
 - `component:mount` - rendered in canvas
+- `component:add` - component added to editor
 - `component:update` / `component:update:{prop}`
-- `component:remove`
+- `component:remove` - component removed
+- `component:remove:before` - before removal (use `opts.abort = true` to prevent, `removeFn()` to complete later)
+- `component:clone` - component cloned (new model passed)
 - `component:selected` / `component:deselected`
 - `component:toggled` - selection toggled
+- `component:styleUpdate` / `component:styleUpdate:{property}` - style changed
+- `component:drag:start` / `component:drag` / `component:drag:end` - drag lifecycle (passes `{ target, parent, index }`)
+- `component:resize` - during component resize
+- `component:type:add` / `component:type:update` - component type registered/updated
 
 ### Block Events
 - `block:drag:stop` - block dropped
@@ -478,7 +449,14 @@ editor.setDevice('Mobile');
 - `trait:custom` - custom trait UI update
 
 ### Canvas Events
-- `canvas:spot` - canvas spot update
+- `canvas:drop` - something dropped in canvas
+- `canvas:dragenter` / `canvas:dragover` / `canvas:dragend` / `canvas:dragdata`
+- `canvas:zoom` - canvas zoom changed
+- `canvas:coords` - canvas position changed
+- `canvas:move:start` / `canvas:move` / `canvas:move:end`
+- `canvas:frame:load` / `canvas:frame:load:head` / `canvas:frame:load:body` / `canvas:frame:unload`
+- `canvas:spot` / `canvas:spot:add` / `canvas:spot:update` / `canvas:spot:remove`
+- `canvas:refresh` - canvas tools repositioned
 
 ### Storage Events
 - `storage:start` / `storage:end`
@@ -493,6 +471,12 @@ editor.setDevice('Mobile');
 - `layer:custom` - custom layer UI
 - `layer:root` - root layer changed
 - `layer:component` - component layer update
+
+### Symbol Events
+- `symbol:main:add` / `symbol:main:update` / `symbol:main:remove`
+- `symbol:instance:add` / `symbol:instance:remove`
+- `symbol:main` / `symbol:instance` - catch-all per type
+- `symbol` - catch-all for any symbol change
 
 ### Command Events
 - `command:run` / `command:stop` - any command
@@ -626,64 +610,19 @@ md.open({
 
 ## Selectors
 
-```js
-// Configuration
-grapesjs.init({
-  selectorManager: {
-    appendTo: '.styles-container',
-    componentFirst: true, // style component directly, not shared class
-  },
-});
-
-const sm = editor.SelectorManager;
-// Manage selectors/classes on selected component
-```
+See [style-customization.md](style-customization.md) for Selector Manager configuration. Key config: `selectorManager: { componentFirst: true }` to style individual components instead of shared classes.
 
 ## Component CSS
 
-### Component-scoped styles (in type definition)
-```js
-editor.DomComponents.addType('my-card', {
-  model: {
-    defaults: {
-      attributes: { class: 'card' },
-      styles: `
-        .card { border: 1px solid #ddd; border-radius: 8px; padding: 16px; }
-        @media (max-width: 768px) { .card { padding: 8px; } }
-      `,
-    },
-  },
-});
-```
+See [style-customization.md](style-customization.md) for component-scoped styles, component-oriented styling best practices, and style constraints (`stylable`/`unstylable`).
 
-Styles are grouped per component type and auto-removed when all instances are removed.
-
-**Best practice:** Follow component-oriented styling — declare styles only in the component that owns them:
+For programmatic CSS rule management (setRule, getRule, addRules with media queries), see [core-api-reference.md](core-api-reference.md) — CssComposer section.
 
 ```js
-// BAD: Parent declares styles for children
-domc.addType('parent', {
-  model: {
-    defaults: {
-      styles: `.child-a { color: green } .child-b { color: blue }`,
-      components: [{ type: 'child-a' }, { type: 'child-b' }],
-    },
-  },
-});
-
-// GOOD: Each component owns its own styles
-domc.addType('child-a', {
-  model: { defaults: { attributes: { class: 'child-a' }, styles: `.child-a { color: green }` } },
-});
-domc.addType('child-b', {
-  model: { defaults: { attributes: { class: 'child-b' }, styles: `.child-b { color: blue }` } },
-});
-```
-
-### Add CSS rules programmatically
-```js
+// Quick reference
 editor.addStyle('.my-class { color: red; font-size: 14px; }');
 editor.setStyle('.my-class { color: blue; }'); // replaces all styles
+editor.Css.setRule('.btn', { color: 'red' }, { atRuleType: 'media', atRuleParams: '(max-width: 768px)' });
 ```
 
 ## Data Sources
